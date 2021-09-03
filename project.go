@@ -299,13 +299,11 @@ func ignore(s map[string]string, p string) bool {
 	ro := strings.Split(p, "/")
 	c := len(ro)
 	var match string
-	fmt.Println(c)
-	fmt.Println("p: " + p)
 	if c > 1 {
 
 		for i := 0; i < c; i++ {
 
-			if i == c-2 {
+			if i <= c-2 {
 				match += ro[i] + "/"
 			}
 
@@ -313,8 +311,6 @@ func ignore(s map[string]string, p string) bool {
 				return true
 			}
 		}
-
-		fmt.Println("-->: " + match)
 
 		if _, ok := s[p]; ok {
 			return true
