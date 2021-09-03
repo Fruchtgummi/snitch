@@ -11,6 +11,7 @@ import (
 	"path"
 	"regexp"
 	"runtime"
+	"strings"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -203,13 +204,11 @@ type TodoResult struct {
 // WalkTodosOfDir visits all of the TODOs in a particular directory
 func (project Project) WalkTodosOfDir(dirpath string) (<-chan TodoResult, context.CancelFunc, error) {
 
-	var cmd *exec.Cmd
+	ignoreMap, _ := getSnichIgnoreSlice(dirpath + "/.snitchignore")
 
-	if _, err := os.Stat(dirpath + "/.snitchignore"); os.IsNotExist(err) {
-		cmd = exec.Command("git", "ls-files", dirpath)
-	} else {
-		cmd = exec.Command("git", "ls-files", "--exclude-from=.snitchignore", dirpath)
-	}
+	fmt.Println(ignoreMap)
+
+	cmd := exec.Command("git", "ls-files", dirpath)
 
 	var outb bytes.Buffer
 	cmd.Stdout = &outb
@@ -237,6 +236,13 @@ func (project Project) WalkTodosOfDir(dirpath string) (<-chan TodoResult, contex
 					output <- TodoResult{nil, workerErr}
 					continue
 				}
+
+				if ignore(ignoreMap, filepath) {
+
+					fmt.Printf("[IGNORE] `%s` is in .snitchignore blocked. Skipping it for now...\n", filepath)
+					continue
+				}
+
 				if stat.IsDir() {
 					// FIXME(#145): snitch should go inside of git submodules recursively
 					fmt.Printf("[WARN] `%s` is probably a submodule. Skipping it for now...\n", filepath)
@@ -273,6 +279,55 @@ func (project Project) WalkTodosOfDir(dirpath string) (<-chan TodoResult, contex
 	return output, cancel, nil
 }
 
+func getSnichIgnoreSlice(path string) (map[string]string, error) {
+
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	lines := make(map[string]string)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines[scanner.Text()] = scanner.Text()
+	}
+	return lines, scanner.Err()
+
+}
+
+func ignore(s map[string]string, p string) bool {
+
+	ro := strings.Split(p, "/")
+	c := len(ro)
+	var match string
+
+	if c > 1 {
+
+		for i := 0; i < c; i++ {
+			if i == c-2 {
+				match += ro[i]
+			}
+
+		}
+		if _, ok := s[match+"/**"]; ok {
+			return true
+		}
+
+		if _, ok := s[p]; ok {
+			return true
+		}
+
+	} else if c == 1 {
+		if _, ok := s[ro[0]]; ok {
+
+			return true
+		}
+	}
+
+	return false
+}
+
 func yamlConfigPath(projectPath string) (string, bool) {
 	for _, suffix := range [2]string{"yaml", "yml"} {
 		path := path.Join(projectPath, fmt.Sprintf(".snitch.%s", suffix))
@@ -283,6 +338,13 @@ func yamlConfigPath(projectPath string) (string, bool) {
 	}
 
 	return "", false
+}
+
+func IfThenElse(condition bool, a interface{}, b interface{}) interface{} {
+	if condition {
+		return a
+	}
+	return b
 }
 
 // NewProject constructs the Project from a YAML file
