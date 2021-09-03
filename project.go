@@ -202,7 +202,15 @@ type TodoResult struct {
 
 // WalkTodosOfDir visits all of the TODOs in a particular directory
 func (project Project) WalkTodosOfDir(dirpath string) (<-chan TodoResult, context.CancelFunc, error) {
-	cmd := exec.Command("git", "ls-files", dirpath)
+
+	var cmd *exec.Cmd
+
+	if _, err := os.Stat(dirpath + "/.snitchignore"); os.IsNotExist(err) {
+		cmd = exec.Command("git", "ls-files", dirpath)
+	} else {
+		cmd = exec.Command("git", "ls-files", "--exclude-from=.snitchignore", dirpath)
+	}
+
 	var outb bytes.Buffer
 	cmd.Stdout = &outb
 
