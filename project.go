@@ -204,10 +204,7 @@ type TodoResult struct {
 // WalkTodosOfDir visits all of the TODOs in a particular directory
 func (project Project) WalkTodosOfDir(dirpath string) (<-chan TodoResult, context.CancelFunc, error) {
 
-	ignoreMap, _ := getSnichIgnoreSlice(dirpath + "/.snitchignore")
-
-	fmt.Println(ignoreMap)
-
+	ignoreMap, _ := getSnichIgnoreMap(dirpath + "/.snitchignore")
 	cmd := exec.Command("git", "ls-files", dirpath)
 
 	var outb bytes.Buffer
@@ -279,7 +276,7 @@ func (project Project) WalkTodosOfDir(dirpath string) (<-chan TodoResult, contex
 	return output, cancel, nil
 }
 
-func getSnichIgnoreSlice(path string) (map[string]string, error) {
+func getSnichIgnoreMap(path string) (map[string]string, error) {
 
 	file, err := os.Open(path)
 	if err != nil {
@@ -296,31 +293,35 @@ func getSnichIgnoreSlice(path string) (map[string]string, error) {
 
 }
 
+//match Path or dir with /** also dir/dir/** or dir/dir/file.ext
 func ignore(s map[string]string, p string) bool {
 
 	ro := strings.Split(p, "/")
 	c := len(ro)
 	var match string
-
+	fmt.Println(c)
+	fmt.Println("p: " + p)
 	if c > 1 {
 
 		for i := 0; i < c; i++ {
+
 			if i == c-2 {
-				match += ro[i]
+				match += ro[i] + "/"
 			}
 
+			if _, ok := s[match+"**"]; ok {
+				return true
+			}
 		}
-		if _, ok := s[match+"/**"]; ok {
-			return true
-		}
+
+		fmt.Println("-->: " + match)
 
 		if _, ok := s[p]; ok {
 			return true
 		}
 
 	} else if c == 1 {
-		if _, ok := s[ro[0]]; ok {
-
+		if _, ok := s[p]; ok {
 			return true
 		}
 	}
@@ -338,13 +339,6 @@ func yamlConfigPath(projectPath string) (string, bool) {
 	}
 
 	return "", false
-}
-
-func IfThenElse(condition bool, a interface{}, b interface{}) interface{} {
-	if condition {
-		return a
-	}
-	return b
 }
 
 // NewProject constructs the Project from a YAML file
